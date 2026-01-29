@@ -11,5 +11,10 @@ export default defineConfig({
     },
     testTimeout: 30000,
     globals: false,
+    env: {
+      // Minimal env vars to satisfy config validation during test imports
+      TELEGRAM_BOT_TOKEN: 'test-token-123',
+      ALLOWED_USER_IDS: '12345',
+    },
   },
 });
