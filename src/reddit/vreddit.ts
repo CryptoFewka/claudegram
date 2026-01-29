@@ -5,6 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { config } from '../config.js';
 import { createMinimalEnv } from '../validation/env.js';
+import { validateUrlSafety, isAllowedExternalDomain } from '../validation/url.js';
 
 const USER_AGENT = 'claudegram/1.0';
 const DASH_FETCH_TIMEOUT_MS = 15000;
@@ -92,21 +93,27 @@ function normalizeHtml(html: string): string {
 }
 
 function extractVRedditIdFromHtml(html: string): string | null {
-  const normalized = normalizeHtml(html);
+  // Limit HTML to first 100KB to prevent ReDoS (VULN-R06)
+  const limitedHtml = html.slice(0, 100 * 1024);
+  const normalized = normalizeHtml(limitedHtml);
   const match = normalized.match(/v\.redd\.it\/([a-z0-9]+)/i);
   return match ? match[1] : null;
 }
 
 function extractDashUrlFromHtml(html: string): string | null {
-  const normalized = normalizeHtml(html);
+  // Limit HTML to first 100KB to prevent ReDoS (VULN-R06)
+  const limitedHtml = html.slice(0, 100 * 1024);
+  const normalized = normalizeHtml(limitedHtml);
   const match = normalized.match(/https?:\/\/v\.redd\.it\/[a-z0-9]+\/DASHPlaylist\.mpd/i);
   if (match) return match[0];
-  const id = extractVRedditIdFromHtml(normalized);
+  const id = extractVRedditIdFromHtml(html);
   return id ? dashUrlFromId(id) : null;
 }
 
 function extractExternalUrlFromHtml(html: string): string | null {
-  const match = html.match(/data-url="(https?:\/\/[^"]+)"/);
+  // Limit HTML to first 100KB to prevent ReDoS (VULN-R06)
+  const limitedHtml = html.slice(0, 100 * 1024);
+  const match = limitedHtml.match(/data-url="(https?:\/\/[^"]+)"/);
   if (!match) return null;
   const url = match[1];
   // Skip Reddit self-links and images
@@ -114,6 +121,8 @@ function extractExternalUrlFromHtml(html: string): string | null {
   if (/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(url)) return null;
   // Validate protocol to prevent SSRF
   if (!isValidProtocol(url)) return null;
+  // VULN-R02 fix: Only allow approved external domains
+  if (!isAllowedExternalDomain(url)) return null;
   return url;
 }
 
@@ -121,9 +130,10 @@ async function resolveFinalUrl(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       'curl',
-      ['-sS', '-L', '-o', '/dev/null', '-w', '%{url_effective}',
+      ['-sS', '-o', '/dev/null', '-w', '%{url_effective}',
        '-H', `User-Agent: ${USER_AGENT}`,
        '--connect-timeout', '15', '--max-time', '30',
+       '--max-redirs', '0',
        url],
       { timeout: 35000, env: createMinimalEnv() },
       (error, stdout, stderr) => {
@@ -141,10 +151,11 @@ async function fetchHtml(url: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       'curl',
-      ['-sS', '-L', '-f',
+      ['-sS', '-f',
        '-H', `User-Agent: ${USER_AGENT}`,
        '-b', 'over18=1',
        '--connect-timeout', '15', '--max-time', '30',
+       '--max-redirs', '0',
        url],
       { timeout: 35000, maxBuffer: 10 * 1024 * 1024, env: createMinimalEnv() },
       (error, stdout, stderr) => {
@@ -275,9 +286,10 @@ async function downloadFile(url: string, destPath: string, timeoutSec: number): 
       [
         '-sS',
         '-f',
-        '-L',
         '--connect-timeout', '10',
         '--max-time', String(timeoutSec),
+        '--max-redirs', '0',
+        '--max-filesize', '100M',
         '--retry', '2',
         '--retry-delay', '2',
         '-o', destPath,
@@ -302,6 +314,9 @@ async function downloadFile(url: string, destPath: string, timeoutSec: number): 
 }
 
 async function downloadWithYtDlp(url: string, outputPath: string): Promise<number> {
+  // VULN-R04 fix: Validate URL before passing to yt-dlp
+  validateUrlSafety(url);
+
   return new Promise((resolve, reject) => {
     execFile(
       'yt-dlp',
@@ -557,6 +572,12 @@ async function resolveVideoSource(input: string): Promise<VideoSource> {
 }
 
 export async function executeVReddit(ctx: Context, input: string): Promise<void> {
+  // Input validation at entry point
+  if (input.length > 2048 || input.includes('\0')) {
+    await replyMd(ctx, '❌ Invalid input\\.');
+    return;
+  }
+
   const maxVideoBytes = config.REDDIT_VIDEO_MAX_SIZE_MB * 1024 * 1024;
   let tempDir: string | null = null;
   let ackMsg: { message_id: number } | null = null;

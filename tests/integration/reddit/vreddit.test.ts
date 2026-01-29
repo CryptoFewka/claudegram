@@ -54,12 +54,12 @@ describe('Reddit Video Extraction (Regression)', () => {
       mockExecFile = createExecFileMock([
         {
           command: 'curl',
-          args: ['-sS', '-L'],
+          args: ['-sS'],
           response: { stdout: 'https://old.reddit.com/r/test/comments/abc123' }
         },
         {
           command: 'curl',
-          args: ['-sS', '-L', '-f'],
+          args: ['-sS', '-f'],
           response: { stdout: '<html>No video here</html>' }
         }
       ]);
@@ -67,10 +67,10 @@ describe('Reddit Video Extraction (Regression)', () => {
 
       await executeVReddit(mockContext, 'https://www.reddit.com/r/test/comments/abc123');
 
-      // Should call curl to resolve URL
+      // Should call curl to resolve URL (without -L flag per VULN-R01 fix)
       expect(mockExecFile).toHaveBeenCalledWith(
         'curl',
-        expect.arrayContaining(['-L', expect.stringContaining('reddit.com')]),
+        expect.arrayContaining(['--max-redirs', '0', expect.stringContaining('reddit.com')]),
         expect.anything(),
         expect.any(Function)
       );

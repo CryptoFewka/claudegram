@@ -88,6 +88,15 @@ describe('Medium Article Parsing (Regression)', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: {
+          get: (name: string) => {
+            const headers: Record<string, string> = {
+              'content-type': 'text/html; charset=utf-8',
+              'content-length': String(mockHtml.length)
+            };
+            return headers[name.toLowerCase()] || null;
+          }
+        },
         text: async () => mockHtml
       });
 
@@ -123,6 +132,15 @@ describe('Medium Article Parsing (Regression)', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: {
+          get: (name: string) => {
+            const headers: Record<string, string> = {
+              'content-type': 'text/html; charset=utf-8',
+              'content-length': String(mockHtml.length)
+            };
+            return headers[name.toLowerCase()] || null;
+          }
+        },
         text: async () => mockHtml
       });
 
@@ -151,6 +169,15 @@ describe('Medium Article Parsing (Regression)', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: {
+          get: (name: string) => {
+            const headers: Record<string, string> = {
+              'content-type': 'text/html; charset=utf-8',
+              'content-length': String(mockHtml.length)
+            };
+            return headers[name.toLowerCase()] || null;
+          }
+        },
         text: async () => mockHtml
       });
 
@@ -178,6 +205,15 @@ describe('Medium Article Parsing (Regression)', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: {
+          get: (name: string) => {
+            const headers: Record<string, string> = {
+              'content-type': 'text/html; charset=utf-8',
+              'content-length': String(mockHtml.length)
+            };
+            return headers[name.toLowerCase()] || null;
+          }
+        },
         text: async () => mockHtml
       });
 
@@ -240,6 +276,15 @@ describe('Medium Article Parsing (Regression)', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: {
+          get: (name: string) => {
+            const headers: Record<string, string> = {
+              'content-type': 'text/html; charset=utf-8',
+              'content-length': String(malformedHtml.length)
+            };
+            return headers[name.toLowerCase()] || null;
+          }
+        },
         text: async () => malformedHtml
       });
 
@@ -263,6 +308,15 @@ describe('Medium Article Parsing (Regression)', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: {
+          get: (name: string) => {
+            const headers: Record<string, string> = {
+              'content-type': 'text/html; charset=utf-8',
+              'content-length': String(emptyHtml.length)
+            };
+            return headers[name.toLowerCase()] || null;
+          }
+        },
         text: async () => emptyHtml
       });
 
@@ -287,6 +341,15 @@ describe('Medium Article Parsing (Regression)', () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: true,
         status: 200,
+        headers: {
+          get: (name: string) => {
+            const headers: Record<string, string> = {
+              'content-type': 'text/html; charset=utf-8',
+              'content-length': String(emptyContentHtml.length)
+            };
+            return headers[name.toLowerCase()] || null;
+          }
+        },
         text: async () => emptyContentHtml
       });
 

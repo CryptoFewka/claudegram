@@ -52,8 +52,15 @@ export function isMediumUrl(url: string): boolean {
     const parsed = new URL(url);
     const host = parsed.hostname.replace(/^www\./, '');
     if (KNOWN_MEDIUM_DOMAINS.has(host)) return true;
-    // Subdomain of medium.com (e.g. blog.medium.com)
-    if (host.endsWith('.medium.com')) return true;
+    // VULN-F01 partial fix: Only allow single-level subdomains of medium.com
+    // Prevents multi-level subdomain abuse like evil.attacker.medium.com
+    if (host.endsWith('.medium.com')) {
+      const subdomain = host.slice(0, -('.medium.com'.length));
+      // Subdomain must not contain dots (single level only)
+      if (!subdomain.includes('.')) {
+        return true;
+      }
+    }
     return false;
   } catch {
     return false;
@@ -61,12 +68,28 @@ export function isMediumUrl(url: string): boolean {
 }
 
 /**
+ * Allowed Freedium hosts for security.
+ * VULN-F04 fix: Prevent SSRF via malicious FREEDIUM_HOST config.
+ */
+const ALLOWED_FREEDIUM_HOSTS = new Set([
+  'freedium-mirror.cfd',
+  'freedium.cfd',
+  'localhost',
+]);
+
+/**
  * Convert a Medium URL to its Freedium mirror equivalent.
  */
 export function toFreediumUrl(url: string): string {
+  // VULN-F04 fix: Validate FREEDIUM_HOST against allowlist
+  const host = config.FREEDIUM_HOST.toLowerCase();
+  if (!ALLOWED_FREEDIUM_HOSTS.has(host)) {
+    throw new Error('FREEDIUM_HOST is not in the allowed hosts list');
+  }
+
   const parsed = new URL(url);
   // Freedium expects the original full URL as the path
-  return `https://${config.FREEDIUM_HOST}/${parsed.href}`;
+  return `https://${host}/${parsed.href}`;
 }
 
 /**
@@ -89,7 +112,24 @@ export async function fetchMediumArticle(url: string): Promise<FreediumArticle> 
     throw new Error(`Freedium returned HTTP ${response.status}: ${response.statusText}`);
   }
 
+  // VULN-F03 fix: Validate content-type
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('text/html') && !contentType.includes('text/plain')) {
+    throw new Error('Unexpected content type from Freedium');
+  }
+
+  // VULN-F03 fix: Validate content-length if header present
+  const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+  if (contentLength > 5_000_000) {
+    throw new Error('Freedium response too large (>5MB)');
+  }
+
   const html = await response.text();
+
+  // VULN-F03 fix: Validate actual size after loading
+  if (html.length > 5_000_000) {
+    throw new Error('Freedium response too large (>5MB)');
+  }
   const $ = cheerio.load(html);
 
   // Extract title
@@ -139,6 +179,19 @@ function convertToArticle(
     replacement: (_content, node) => {
       const text = (node as { textContent?: string }).textContent || '';
       return `\n\`\`\`\n${text}\n\`\`\`\n`;
+    },
+  });
+
+  // VULN-F02 fix: Sanitize links to only allow http/https
+  turndown.addRule('safeLinks', {
+    filter: 'a',
+    replacement: (content, node) => {
+      const href = (node as HTMLElement).getAttribute('href') || '';
+      // Only allow http/https links and relative links
+      if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('/')) {
+        return content; // Strip the link, keep text
+      }
+      return href ? `[${content}](${href})` : content;
     },
   });
 
