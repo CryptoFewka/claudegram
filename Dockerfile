@@ -75,5 +75,9 @@ USER claudegram
 # Set environment defaults
 ENV NODE_ENV=production
 
+# Health check to verify Node.js runtime is functional
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD node -e "process.exit(0)" || exit 1
+
 # Auto-start bot when container runs
 ENTRYPOINT ["node", "dist/index.js"]
