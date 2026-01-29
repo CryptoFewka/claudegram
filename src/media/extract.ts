@@ -5,6 +5,7 @@ import * as path from 'path';
 import { config } from '../config.js';
 import { transcribeFile } from '../audio/transcribe.js';
 import { sanitizeError, sanitizePath } from '../utils/sanitize.js';
+import { createMinimalEnv } from '../validation/env.js';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -145,7 +146,7 @@ function runCommand(
   timeoutMs: number
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
+    execFile(cmd, args, { timeout: timeoutMs, maxBuffer: 10 * 1024 * 1024, env: createMinimalEnv() }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`${cmd} failed: ${(stderr || '').trim() || error.message}`));
         return;

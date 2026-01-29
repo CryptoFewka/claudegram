@@ -18,6 +18,7 @@ import { getStreamingMode, executeRedditFetch, executeMediumFetch, showExtractMe
 import { executeVReddit } from '../../reddit/vreddit.js';
 import { detectPlatform, isValidUrl } from '../../media/extract.js';
 import { maybeSendVoiceReply } from '../../tts/voice-reply.js';
+import { validatePathWithinRoot, PathValidationError } from '../../validation/path.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -308,9 +309,28 @@ async function handleFileReply(ctx: Context, chatId: number, filePath: string): 
     return;
   }
 
-  const fullPath = trimmedPath.startsWith('/')
-    ? trimmedPath
-    : path.join(session.workingDirectory, trimmedPath);
+  // Validate path to prevent traversal attacks
+  let fullPath: string;
+  if (trimmedPath.startsWith('/')) {
+    await ctx.reply(
+      `❌ Absolute paths not allowed\\. Use a path relative to your project\\.`,
+      { parse_mode: 'MarkdownV2' }
+    );
+    return;
+  }
+
+  try {
+    fullPath = validatePathWithinRoot(session.workingDirectory, trimmedPath);
+  } catch (err) {
+    if (err instanceof PathValidationError) {
+      await ctx.reply(
+        `❌ Path traversal detected: access denied`,
+        { parse_mode: 'MarkdownV2' }
+      );
+      return;
+    }
+    throw err;
+  }
 
   if (!fs.existsSync(fullPath)) {
     await ctx.reply(
@@ -421,9 +441,28 @@ async function handleTelegraphReply(ctx: Context, chatId: number, filePath: stri
     return;
   }
 
-  const fullPath = trimmedPath.startsWith('/')
-    ? trimmedPath
-    : path.join(session.workingDirectory, trimmedPath);
+  // Validate path to prevent traversal attacks
+  let fullPath: string;
+  if (trimmedPath.startsWith('/')) {
+    await ctx.reply(
+      `❌ Absolute paths not allowed\\. Use a path relative to your project\\.`,
+      { parse_mode: 'MarkdownV2' }
+    );
+    return;
+  }
+
+  try {
+    fullPath = validatePathWithinRoot(session.workingDirectory, trimmedPath);
+  } catch (err) {
+    if (err instanceof PathValidationError) {
+      await ctx.reply(
+        `❌ Path traversal detected: access denied`,
+        { parse_mode: 'MarkdownV2' }
+      );
+      return;
+    }
+    throw err;
+  }
 
   if (!fs.existsSync(fullPath)) {
     await ctx.reply(

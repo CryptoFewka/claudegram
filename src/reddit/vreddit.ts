@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { config } from '../config.js';
+import { createMinimalEnv } from '../validation/env.js';
 
 const USER_AGENT = 'claudegram/1.0';
 const DASH_FETCH_TIMEOUT_MS = 15000;
@@ -124,7 +125,7 @@ async function resolveFinalUrl(url: string): Promise<string> {
        '-H', `User-Agent: ${USER_AGENT}`,
        '--connect-timeout', '15', '--max-time', '30',
        url],
-      { timeout: 35000 },
+      { timeout: 35000, env: createMinimalEnv() },
       (error, stdout, stderr) => {
         if (error) {
           reject(new Error(`Failed to resolve URL: ${(stderr || '').trim() || error.message}`));
@@ -145,7 +146,7 @@ async function fetchHtml(url: string): Promise<string> {
        '-b', 'over18=1',
        '--connect-timeout', '15', '--max-time', '30',
        url],
-      { timeout: 35000, maxBuffer: 10 * 1024 * 1024 },
+      { timeout: 35000, maxBuffer: 10 * 1024 * 1024, env: createMinimalEnv() },
       (error, stdout, stderr) => {
         if (error) {
           reject(new Error(`Failed to fetch page: ${(stderr || '').trim() || error.message}`));
@@ -282,7 +283,7 @@ async function downloadFile(url: string, destPath: string, timeoutSec: number): 
         '-o', destPath,
         url,
       ],
-      { timeout: (timeoutSec + 10) * 1000 },
+      { timeout: (timeoutSec + 10) * 1000, env: createMinimalEnv() },
       (error, _stdout, stderr) => {
         if (error) {
           const msg = (stderr || '').trim() || error.message;
@@ -312,7 +313,7 @@ async function downloadWithYtDlp(url: string, outputPath: string): Promise<numbe
         '--socket-timeout', '30',
         url,
       ],
-      { timeout: VIDEO_DOWNLOAD_TIMEOUT_SEC * 1000 },
+      { timeout: VIDEO_DOWNLOAD_TIMEOUT_SEC * 1000, env: createMinimalEnv() },
       (error, _stdout, stderr) => {
         if (error) {
           reject(new Error(`yt-dlp failed: ${(stderr || '').trim() || error.message}`));
@@ -334,7 +335,7 @@ async function mergeVideoAudio(videoPath: string, audioPath: string, outputPath:
     execFile(
       'ffmpeg',
       ['-y', '-i', videoPath, '-i', audioPath, '-c', 'copy', '-movflags', '+faststart', outputPath],
-      { timeout: FFMPEG_TIMEOUT_MS },
+      { timeout: FFMPEG_TIMEOUT_MS, env: createMinimalEnv() },
       (error, _stdout, stderr) => {
         if (error) {
           const msg = (stderr || '').trim() || error.message;
@@ -352,7 +353,7 @@ async function getVideoDuration(filePath: string): Promise<number> {
     execFile(
       'ffprobe',
       ['-i', filePath, '-show_entries', 'format=duration', '-v', 'quiet', '-of', 'csv=p=0'],
-      { timeout: 15000 },
+      { timeout: 15000, env: createMinimalEnv() },
       (error, stdout, stderr) => {
         if (error) {
           const msg = (stderr || '').trim() || error.message;
@@ -382,7 +383,7 @@ async function compressCrf(inputPath: string, outputPath: string): Promise<numbe
         '-movflags', '+faststart',
         outputPath,
       ],
-      { timeout: FFMPEG_COMPRESS_TIMEOUT_MS },
+      { timeout: FFMPEG_COMPRESS_TIMEOUT_MS, env: createMinimalEnv() },
       (error, _stdout, stderr) => {
         if (error) {
           const msg = (stderr || '').trim() || error.message;
@@ -425,7 +426,7 @@ async function compressTwoPass(
         '-an', '-f', 'mp4',
         '/dev/null',
       ],
-      { timeout: FFMPEG_COMPRESS_TIMEOUT_MS },
+      { timeout: FFMPEG_COMPRESS_TIMEOUT_MS, env: createMinimalEnv() },
       (error, _stdout, stderr) => {
         if (error) {
           const msg = (stderr || '').trim() || error.message;
@@ -449,7 +450,7 @@ async function compressTwoPass(
         '-movflags', '+faststart',
         outputPath,
       ],
-      { timeout: FFMPEG_COMPRESS_TIMEOUT_MS },
+      { timeout: FFMPEG_COMPRESS_TIMEOUT_MS, env: createMinimalEnv() },
       (error, _stdout, stderr) => {
         if (error) {
           const msg = (stderr || '').trim() || error.message;
