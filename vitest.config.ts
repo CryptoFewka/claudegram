@@ -1,0 +1,15 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    include: ['tests/**/*.{test,spec}.ts'],
+    environment: 'node',
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts'],
+      exclude: ['src/index.ts', 'src/**/*.d.ts'],
+    },
+    testTimeout: 30000,
+    globals: false,
+  },
+});
