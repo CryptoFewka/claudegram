@@ -46,6 +46,8 @@ import { execFile, spawn } from 'child_process';
 import { sanitizeError, sanitizePath } from '../../utils/sanitize.js';
 import { validatePathWithinRoot, PathValidationError } from '../../validation/path.js';
 import { createMinimalEnv } from '../../validation/env.js';
+import { requireFeature, FeatureDisabledError } from '../../features/flags.js';
+import { callExternalService, ServiceUnavailableError, formatServiceError } from '../../features/errors.js';
 
 // Helper for consistent MarkdownV2 replies
 async function replyMd(ctx: Context, text: string): Promise<void> {

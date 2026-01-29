@@ -186,7 +186,7 @@ function convertToArticle(
   turndown.addRule('safeLinks', {
     filter: 'a',
     replacement: (content, node) => {
-      const href = (node as HTMLElement).getAttribute('href') || '';
+      const href = (node as { getAttribute?: (name: string) => string | null }).getAttribute?.('href') || '';
       // Only allow http/https links and relative links
       if (href && !href.startsWith('http://') && !href.startsWith('https://') && !href.startsWith('/')) {
         return content; // Strip the link, keep text
