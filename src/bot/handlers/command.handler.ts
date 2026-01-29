@@ -646,7 +646,8 @@ export async function handleNewProject(ctx: Context): Promise<void> {
   await replyMd(ctx, `✅ Created and opened: *${esc(args)}*\n\nYou can now chat with Claude about this project\\!`);
 }
 
-function listProjects(): string[] {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _listProjects(): string[] {
   try {
     const entries = fs.readdirSync(config.WORKSPACE_DIR, { withFileTypes: true });
     return entries

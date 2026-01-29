@@ -1,6 +1,6 @@
 import { Context, Api, InputFile } from 'grammy';
 import { config } from '../config.js';
-import { processMessageForTelegram, convertToTelegramMarkdown, escapeMarkdownV2 } from './markdown.js';
+import { processMessageForTelegram, escapeMarkdownV2 } from './markdown.js';
 import { shouldUseTelegraph, createTelegraphPage, createTelegraphFromFile } from './telegraph.js';
 import * as fs from 'fs';
 import * as path from 'path';

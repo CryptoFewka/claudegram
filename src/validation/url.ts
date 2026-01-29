@@ -30,7 +30,7 @@ export function validateUrlSafety(urlString: string): void {
   // Parse URL
   try {
     url = new URL(urlString);
-  } catch (error) {
+  } catch {
     throw new Error('Invalid URL format');
   }
 
@@ -51,7 +51,7 @@ export function validateUrlSafety(urlString: string): void {
 
   // Validate no control characters in URL string
   // Control characters: 0x00-0x1F and 0x7F
-  // eslint-disable-next-line no-control-regex
+   
   if (/[\x00-\x1F\x7F]/.test(urlString)) {
     throw new Error('URLs with control characters are not allowed');
   }

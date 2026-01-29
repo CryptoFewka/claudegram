@@ -59,12 +59,10 @@ export function splitMessage(text: string, maxLength: number = MAX_MESSAGE_LENGT
 
     // Track code block state in this chunk
     const codeBlockMatches = chunk.matchAll(/```(\w*)?/g);
-    let lastCodeBlockIndex: number = -1;
     let tempInCodeBlock: boolean = inCodeBlock;
     let tempLang: string = codeBlockLang;
 
     for (const match of codeBlockMatches) {
-      lastCodeBlockIndex = match.index!;
       if (tempInCodeBlock) {
         // Closing a code block
         tempInCodeBlock = false;
@@ -82,7 +80,7 @@ export function splitMessage(text: string, maxLength: number = MAX_MESSAGE_LENGT
       // or at a newline within the code block
 
       // First, try to split at a newline
-      let newlineSplit = chunk.lastIndexOf('\n');
+      const newlineSplit = chunk.lastIndexOf('\n');
 
       // If the newline is too early (less than half), look for the last complete line
       if (newlineSplit > maxLength / 2) {

@@ -226,6 +226,7 @@ function markdownToNodes(markdown: string): TelegraphNode[] {
 
       if (isHeader && cells.length > 0) {
         // Store headers for subsequent data rows
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (markdownToNodes as any).__tableHeaders = cells;
         // Render header as a bold line
         nodes.push({ tag: 'p', children: [{ tag: 'b', children: [cells.join('  ·  ')] }] });
@@ -233,6 +234,7 @@ function markdownToNodes(markdown: string): TelegraphNode[] {
       }
 
       // Data row - use stored headers for labeled output
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const headers: string[] = (markdownToNodes as any).__tableHeaders;
       if (headers && headers.length > 0 && cells.length > 0) {
         const parts: TelegraphNode[] = [];

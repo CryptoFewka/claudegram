@@ -1,6 +1,5 @@
 import {
   query,
-  type SDKMessage,
   type SDKResultMessage,
   type SDKCompactBoundaryMessage,
   type SDKStatusMessage,
@@ -264,7 +263,7 @@ export async function sendToAgent(
   sessionManager.updateActivity(chatId, message);
 
   // Get or initialize conversation history
-  let history = conversationHistory.get(chatId) || [];
+  const history = conversationHistory.get(chatId) || [];
 
   // Determine the prompt based on command
   let prompt = message;
