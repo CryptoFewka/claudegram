@@ -2,6 +2,7 @@ import { Context, InputFile } from 'grammy';
 import { config } from '../config.js';
 import { generateSpeech } from './tts.js';
 import { getTTSSettings, isTTSEnabled } from './tts-settings.js';
+import { isFeatureEnabled } from '../features/flags.js';
 
 function stripMarkdown(input: string): string {
   let text = input;
@@ -51,6 +52,7 @@ function truncateToMax(text: string, maxChars: number): string {
 export async function maybeSendVoiceReply(ctx: Context, text: string): Promise<void> {
   const chatId = ctx.chat?.id;
   if (!chatId) return;
+  if (!isFeatureEnabled('tts')) return;
   if (!isTTSEnabled(chatId)) return;
   const hasKey = config.TTS_PROVIDER === 'groq' ? !!config.GROQ_API_KEY : !!config.OPENAI_API_KEY;
   if (!hasKey) return;

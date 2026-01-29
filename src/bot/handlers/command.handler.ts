@@ -820,6 +820,16 @@ export async function handleModeCallback(ctx: Context): Promise<void> {
 }
 
 export async function handleTTS(ctx: Context): Promise<void> {
+  try {
+    requireFeature('tts');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const chatId = ctx.chat?.id;
   if (!chatId) return;
 
@@ -1630,6 +1640,16 @@ export async function executeRedditFetch(
   ctx: Context,
   args: string
 ): Promise<void> {
+  try {
+    requireFeature('reddit');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   await ctx.replyWithChatAction('typing');
 
   const tokens = tokenizeArgs(args);
@@ -1721,6 +1741,16 @@ export async function executeMediumFetch(
   ctx: Context,
   args: string
 ): Promise<void> {
+  try {
+    requireFeature('medium');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   await ctx.replyWithChatAction('typing');
 
   const url = args.trim().split(/\s+/)[0];
@@ -1739,7 +1769,7 @@ export async function executeMediumFetch(
   if (!chatId) return;
 
   try {
-    const article = await fetchMediumArticle(url);
+    const article = await callExternalService('Freedium', () => fetchMediumArticle(url));
 
     // Build preview: title + author + first ~200 chars of markdown
     const preview = article.markdown.length > 200
@@ -1772,6 +1802,10 @@ export async function executeMediumFetch(
       expiresAt: Date.now() + MEDIUM_RESULT_TTL_MS,
     });
   } catch (err) {
+    if (err instanceof ServiceUnavailableError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(formatServiceError(err))}`);
+      return;
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     await replyMd(ctx, `❌ Medium fetch failed: ${esc(message.substring(0, 300))}`);
   }
@@ -1850,6 +1884,16 @@ export async function handleMediumCallback(ctx: Context): Promise<void> {
 }
 
 export async function handleMedium(ctx: Context): Promise<void> {
+  try {
+    requireFeature('medium');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -1877,6 +1921,16 @@ export async function handleMedium(ctx: Context): Promise<void> {
 }
 
 export async function handleReddit(ctx: Context): Promise<void> {
+  try {
+    requireFeature('reddit');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -1906,6 +1960,16 @@ export async function handleReddit(ctx: Context): Promise<void> {
 }
 
 export async function handleVReddit(ctx: Context): Promise<void> {
+  try {
+    requireFeature('reddit');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -2131,6 +2195,16 @@ setInterval(() => {
 }, 60_000);
 
 export async function handleExtract(ctx: Context): Promise<void> {
+  try {
+    requireFeature('extract');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -2159,6 +2233,16 @@ export async function handleExtract(ctx: Context): Promise<void> {
 }
 
 export async function showExtractMenu(ctx: Context, url: string): Promise<void> {
+  try {
+    requireFeature('extract');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const chatId = ctx.chat?.id;
   if (!chatId) return;
 

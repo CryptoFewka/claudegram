@@ -19,6 +19,7 @@ import { executeVReddit } from '../../reddit/vreddit.js';
 import { detectPlatform, isValidUrl } from '../../media/extract.js';
 import { maybeSendVoiceReply } from '../../tts/voice-reply.js';
 import { validatePathWithinRoot, PathValidationError } from '../../validation/path.js';
+import { isFeatureEnabled, requireFeature, FeatureDisabledError } from '../../features/flags.js';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -185,25 +186,53 @@ export async function handleMessage(ctx: Context): Promise<void> {
 
     // Handle Reddit video fetch reply
     if (replyText.includes('Reddit Video')) {
-      await executeVReddit(ctx, text.trim());
+      try {
+        requireFeature('reddit');
+        await executeVReddit(ctx, text.trim());
+      } catch (error) {
+        if (error instanceof FeatureDisabledError) {
+          await ctx.reply(`\u26a0\ufe0f ${esc(error.message)}.`, { parse_mode: 'MarkdownV2' });
+        } else {
+          throw error;
+        }
+      }
       return;
     }
 
     // Handle medium fetch reply
     if (replyText.includes('Medium Fetch') || replyText.includes('Medium article')) {
-      await executeMediumFetch(ctx, text.trim());
+      try {
+        requireFeature('medium');
+        await executeMediumFetch(ctx, text.trim());
+      } catch (error) {
+        if (error instanceof FeatureDisabledError) {
+          await ctx.reply(`\u26a0\ufe0f ${esc(error.message)}.`, { parse_mode: 'MarkdownV2' });
+        } else {
+          throw error;
+        }
+      }
       return;
     }
 
     // Handle extract media reply
     if (replyText.includes('Extract Media') || replyText.includes('Paste a URL')) {
-      await showExtractMenu(ctx, text.trim());
+      try {
+        requireFeature('extract');
+        await showExtractMenu(ctx, text.trim());
+      } catch (error) {
+        if (error instanceof FeatureDisabledError) {
+          await ctx.reply(`\u26a0\ufe0f ${esc(error.message)}.`, { parse_mode: 'MarkdownV2' });
+        } else {
+          throw error;
+        }
+      }
       return;
     }
   }
 
   const vRedditUrl = getAutoVRedditUrl(text);
   if (vRedditUrl) {
+    if (!isFeatureEnabled('reddit')) return;
     await executeVReddit(ctx, vRedditUrl);
     return;
   }
@@ -211,6 +240,7 @@ export async function handleMessage(ctx: Context): Promise<void> {
   // Auto-detect YouTube / TikTok / Instagram URLs sent as bare links → show extract menu
   const trimmedText = text.trim();
   if (isValidUrl(trimmedText) && detectPlatform(trimmedText) !== 'unknown') {
+    if (!isFeatureEnabled('extract')) return;
     await showExtractMenu(ctx, trimmedText);
     return;
   }
