@@ -144,6 +144,23 @@ const envSchema = z.object({
     .string()
     .default('true')
     .transform((val) => val.toLowerCase() === 'true'),
+  // Feature toggles - all default to 'true' for backward compatibility
+  FEATURE_REDDIT: z
+    .string()
+    .default('true')
+    .transform((val) => val.toLowerCase() === 'true'),
+  FEATURE_MEDIUM: z
+    .string()
+    .default('true')
+    .transform((val) => val.toLowerCase() === 'true'),
+  FEATURE_TTS: z
+    .string()
+    .default('true')
+    .transform((val) => val.toLowerCase() === 'true'),
+  FEATURE_EXTRACT: z
+    .string()
+    .default('true')
+    .transform((val) => val.toLowerCase() === 'true'),
 });
 
 const parsed = envSchema.safeParse(process.env);
