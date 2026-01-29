@@ -40,6 +40,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     # Required for gh CLI installation
     gpg \
+    # Passwordless sudo for Claude Code package management
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # Install yt-dlp from PyPI (latest version, not outdated apt package)
@@ -61,7 +63,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
-# Create non-root user and group for security
+# Create non-root user and group for ownership (user namespace mapping handles UID on host)
 RUN groupadd --gid 1001 claudegram \
     && useradd --uid 1001 --gid 1001 --create-home --shell /bin/bash claudegram
 
@@ -69,8 +71,16 @@ RUN groupadd --gid 1001 claudegram \
 RUN mkdir -p /app/workspace /home/claudegram \
     && chown -R claudegram:claudegram /app /home/claudegram
 
-# Switch to non-root user for runtime
-USER claudegram
+# Configure passwordless sudo for Claude Code package management
+# Container runs as root (UID 0) inside, but user namespace remapping
+# maps this to unprivileged UID on host (see docker-compose.yml userns_mode)
+RUN echo "root ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/root \
+    && chmod 0440 /etc/sudoers.d/root
+
+# Runtime user: root inside container (UID 0)
+# Host sees: unprivileged UID via user namespace remapping
+# This allows Claude Code to install packages inside container
+# while preventing host root escalation even with kernel exploits
 
 # Set environment defaults
 ENV NODE_ENV=production
