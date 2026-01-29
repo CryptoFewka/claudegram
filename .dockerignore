@@ -1,0 +1,47 @@
+# Dependencies (rebuilt inside container)
+node_modules/
+
+# Build artifacts (rebuilt inside container)
+dist/
+
+# Environment and secrets (never bake into image)
+.env
+.env.*
+
+# Git repository (not needed in image)
+.git/
+.gitignore
+
+# Planning documentation
+.planning/
+
+# Runtime state files
+.telegraph-account.json
+.session-history.json
+.claudegram/
+storage_state.json
+
+# Output directories
+output/
+
+# Logs
+*.log
+
+# OS-specific files
+.DS_Store
+__pycache__/
+
+# Website and documentation (not needed at runtime)
+docs/
+
+# Tests (not needed in production)
+tests/
+*.test.ts
+*.test.js
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
