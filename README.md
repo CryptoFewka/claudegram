@@ -7,6 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Claude](https://img.shields.io/badge/Claude_Agent_SDK-Anthropic-cc785c?logo=anthropic&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
 [![Telegram](https://img.shields.io/badge/Telegram_Bot-Grammy-26a5e4?logo=telegram&logoColor=white)](https://grammy.dev/)
+[![Security](https://img.shields.io/badge/Security-Hardened-success?logo=security&logoColor=white)](docs/deployment.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 <br />
@@ -25,6 +26,8 @@
 Claudegram bridges Telegram to a **full Claude Code agent** running locally on your machine. Send a message in Telegram — Claude reads your files, runs commands, writes code, browses Reddit, fetches Medium articles, transcribes voice notes, and speaks responses back. All from your phone.
 
 This is not a simple API wrapper. It's the real Claude Code agent with tool access — Bash, file I/O, code editing, web browsing — packaged behind a Telegram interface with streaming responses, session memory, and rich output formatting.
+
+**Production-ready security:** Container isolation, input validation, SSRF prevention, comprehensive test coverage, and CI/CD security scanning.
 
 ---
 
@@ -77,6 +80,19 @@ This is not a simple API wrapper. It's the real Claude Code agent with tool acce
 
 </td>
 </tr>
+<tr>
+<td colspan="2">
+
+### Security & Testing
+- **Container isolation** — Docker/Podman with rootless execution, seccomp, read-only filesystem
+- **Input validation** — Zod schemas, URL validation, SSRF prevention, path sanitization
+- **Feature flags** — Disable Reddit/Medium/TTS/Extract via environment variables
+- **Comprehensive test suite** — Unit and integration tests for all security-critical paths
+- **CI security pipeline** — ESLint security plugin, Trivy scanning, automated testing
+- **Graceful degradation** — External service failures don't crash the bot
+
+</td>
+</tr>
 </table>
 
 ---
@@ -87,7 +103,8 @@ This is not a simple API wrapper. It's the real Claude Code agent with tool acce
 
 | Requirement | Notes |
 |-------------|-------|
-| **Node.js 18+** | with npm |
+| **Node.js 18+** | with npm (for local development) |
+| **Docker or Podman** | for containerized deployment (recommended) |
 | **Claude Code CLI** | installed and authenticated — `claude` in your PATH |
 | **Telegram bot token** | from [@BotFather](https://t.me/botfather) |
 | **Your Telegram user ID** | from [@userinfobot](https://t.me/userinfobot) |
@@ -109,12 +126,69 @@ ALLOWED_USER_IDS=your_user_id
 
 ### Run
 
+**Option 1: Docker (Recommended)**
+
+```bash
+docker compose up -d
+```
+
+See [docs/deployment.md](docs/deployment.md) for production deployment with rootless Docker/Podman.
+
+**Option 2: Local Development**
+
 ```bash
 npm install
 npm run dev        # dev mode with hot reload
 ```
 
 Open your bot in Telegram → `/start`
+
+---
+
+## Deployment
+
+### Docker Compose (Production)
+
+The recommended deployment method uses Docker Compose with comprehensive security hardening:
+
+```bash
+# Build and start
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+**Security features enabled:**
+- Rootless user execution (UID 1000)
+- Read-only root filesystem
+- Seccomp profile
+- Resource limits (CPU/memory)
+- Network isolation
+- User namespace remapping (Podman)
+
+### Rootless Podman
+
+For maximum security, use rootless Podman with user namespace remapping:
+
+```bash
+# Configure user namespace remapping
+echo "claudegram:100000:65536" | sudo tee -a /etc/subuid
+echo "claudegram:100000:65536" | sudo tee -a /etc/subgid
+
+# Deploy
+podman-compose up -d
+```
+
+See **[docs/deployment.md](docs/deployment.md)** for complete production deployment guide, including:
+- Rootless Docker/Podman configuration
+- Volume mounting strategies
+- Systemd service setup
+- Security hardening checklist
+- Troubleshooting
 
 ---
 
@@ -248,6 +322,15 @@ All config lives in `.env`. See [`.env.example`](.env.example) for the full anno
 | `STREAMING_MODE` | `streaming` | `streaming` or `wait` |
 | `DANGEROUS_MODE` | `false` | Auto-approve all tool permissions |
 
+### Feature Flags
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FEATURE_REDDIT` | `true` | Enable `/reddit` and `/vreddit` commands |
+| `FEATURE_MEDIUM` | `true` | Enable `/medium` command |
+| `FEATURE_TTS` | `true` | Enable text-to-speech features |
+| `FEATURE_EXTRACT` | `true` | Enable `/extract` command for media |
+
 ### Reddit
 
 | Variable | Default | Description |
@@ -311,6 +394,14 @@ src/
 │   └── voice-reply.ts             # TTS hook for agent responses
 ├── audio/
 │   └── transcribe.ts              # Shared transcription utilities
+├── validation/
+│   ├── schemas.ts                 # Zod schemas for input validation
+│   ├── url.ts                     # URL safety validation, SSRF prevention
+│   ├── path.ts                    # Path sanitization, traversal protection
+│   └── env.ts                     # Environment variable filtering
+├── features/
+│   ├── flags.ts                   # Feature flag system
+│   └── errors.ts                  # Service error handling
 ├── config.ts                      # Zod-validated environment config
 └── index.ts                       # Entry point
 ```
@@ -324,6 +415,11 @@ npm run dev          # Dev mode with hot reload (tsx watch)
 npm run typecheck    # Type check only
 npm run build        # Compile to dist/
 npm start            # Run compiled build
+npm test             # Run test suite
+npm run test:watch   # Run tests in watch mode
+npm run test:coverage # Run tests with coverage report
+npm run lint         # Check code with ESLint
+npm run lint:fix     # Auto-fix linting issues
 ```
 
 ### Bot Control Script
@@ -350,13 +446,88 @@ Then `/continue` or `/resume` in Telegram to restore your session.
 
 ---
 
+## Testing
+
+Comprehensive test suite covering security-critical code paths:
+
+### Test Organization
+
+```
+tests/
+├── unit/                           # Unit tests for validation modules
+│   ├── security/                   # Input validation, sanitization
+│   └── features/                   # Feature flags, error handling
+├── integration/                    # Integration tests for external services
+│   ├── audio/                      # Transcription workflows
+│   ├── media/                      # Media extraction
+│   ├── medium/                     # Freedium integration
+│   └── reddit/                     # Reddit video downloads
+├── helpers/                        # Test utilities and mocks
+└── mocks/                          # Mock implementations
+```
+
+### Running Tests
+
+```bash
+npm test                    # Run all tests
+npm run test:watch          # Watch mode for development
+npm run test:coverage       # Generate coverage report
+```
+
+### Test Coverage
+
+- **Security validation** — URL validation, path sanitization, SSRF prevention
+- **Input handling** — Zod schemas, error sanitization, env filtering
+- **Feature flags** — Graceful degradation, service toggles
+- **File operations** — Magic byte validation, file type detection
+- **External integrations** — Reddit, Medium, transcription services
+
+All security-critical functions have dedicated test suites with both positive and negative test cases.
+
+---
+
 ## Security
 
+Claudegram follows defense-in-depth principles with multiple layers of protection:
+
+### Container Isolation
+- **Rootless execution** — runs as non-root user inside container
+- **User namespace remapping** — prevents privilege escalation
+- **Seccomp profile** — restricts system calls to essential operations
+- **Read-only filesystem** — only workspace and temp dirs are writable
+- **Resource limits** — CPU, memory, and PID constraints
+- **Network isolation** — blocks access to private IP ranges
+
+See [docs/deployment.md](docs/deployment.md) for production hardening guide.
+
+### Input Validation
+- **Zod schemas** — strict typing for all external inputs
+- **URL validation** — protocol whitelist (http/https only)
+- **SSRF prevention** — blocks private IPs, localhost, metadata endpoints
+- **Path sanitization** — prevents directory traversal attacks
+- **File type validation** — magic byte checking for uploads
+- **ReDoS protection** — safe regex patterns throughout
+
+### Application Security
 - **User whitelist** — only approved Telegram IDs can interact
-- **Project sandbox** — Claude operates within the configured working directory
+- **Environment filtering** — child processes get sanitized env vars
+- **Error sanitization** — stack traces and paths scrubbed from output
+- **Feature flags** — disable risky integrations (Reddit/Medium/Extract)
+- **Graceful degradation** — external service failures don't crash the bot
 - **Permission mode** — uses `acceptEdits` by default
 - **Dangerous mode** — opt-in auto-approve for all tool permissions
-- **Secrets** — loaded from `.env` (gitignored), never committed
+
+### CI/CD Security
+- **ESLint security plugin** — static analysis for vulnerabilities
+- **Trivy scanning** — dependency and container image audits
+- **Automated testing** — comprehensive unit and integration tests
+- **Type checking** — strict TypeScript compilation
+- **Dependency overrides** — patches for known vulnerabilities
+
+### Secrets Management
+- **Environment variables** — all secrets loaded from `.env` (gitignored)
+- **Stdin credential passing** — no secrets in process arguments
+- **No logging of sensitive data** — credentials filtered before output
 
 ---
 

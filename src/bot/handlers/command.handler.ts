@@ -44,6 +44,10 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { execFile, spawn } from 'child_process';
 import { sanitizeError, sanitizePath } from '../../utils/sanitize.js';
+import { validatePathWithinRoot, PathValidationError } from '../../validation/path.js';
+import { createMinimalEnv } from '../../validation/env.js';
+import { requireFeature, FeatureDisabledError } from '../../features/flags.js';
+import { callExternalService, ServiceUnavailableError, formatServiceError } from '../../features/errors.js';
 
 // Helper for consistent MarkdownV2 replies
 async function replyMd(ctx: Context, text: string): Promise<void> {
@@ -86,7 +90,7 @@ function runBotCtl(args: string[]): Promise<{ stdout: string; stderr: string }> 
     execFile(
       BOTCTL_PATH,
       args,
-      { cwd: PROJECT_ROOT, env: { ...process.env, MODE: config.BOT_MODE } },
+      { cwd: PROJECT_ROOT, env: { ...createMinimalEnv(), MODE: config.BOT_MODE } },
       (error, stdout, stderr) => {
         if (error) {
           reject(new Error((stderr || error.message).trim()));
@@ -177,7 +181,7 @@ async function runClaudeContext(sessionId: string, cwd: string): Promise<string>
         cwd,
         timeout: 20_000,
         maxBuffer: 1024 * 1024,
-        env: process.env,
+        env: { ...createMinimalEnv(), ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '' },
       },
       (error, stdout, stderr) => {
         if (error) {
@@ -583,7 +587,16 @@ export async function handleProject(ctx: Context): Promise<void> {
     }
     projectPath = path.resolve(projectPath);
   } else {
-    projectPath = path.join(config.WORKSPACE_DIR, args);
+    // Validate relative path stays within WORKSPACE_DIR
+    try {
+      projectPath = validatePathWithinRoot(config.WORKSPACE_DIR, args);
+    } catch (err) {
+      if (err instanceof PathValidationError) {
+        await replyMd(ctx, `❌ Path traversal detected: access denied`);
+        return;
+      }
+      throw err;
+    }
   }
 
   if (!fs.existsSync(projectPath)) {
@@ -633,7 +646,8 @@ export async function handleNewProject(ctx: Context): Promise<void> {
   await replyMd(ctx, `✅ Created and opened: *${esc(args)}*\n\nYou can now chat with Claude about this project\\!`);
 }
 
-function listProjects(): string[] {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function _listProjects(): string[] {
   try {
     const entries = fs.readdirSync(config.WORKSPACE_DIR, { withFileTypes: true });
     return entries
@@ -809,6 +823,16 @@ export async function handleModeCallback(ctx: Context): Promise<void> {
 }
 
 export async function handleTTS(ctx: Context): Promise<void> {
+  try {
+    requireFeature('tts');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const chatId = ctx.chat?.id;
   if (!chatId) return;
 
@@ -971,7 +995,7 @@ export async function handleRestartBot(ctx: Context): Promise<void> {
     const child = spawn(
       BOTCTL_PATH,
       ['recover'],
-      { cwd: PROJECT_ROOT, detached: true, stdio: 'ignore', env: { ...process.env, MODE: config.BOT_MODE } }
+      { cwd: PROJECT_ROOT, detached: true, stdio: 'ignore', env: { ...createMinimalEnv(), MODE: config.BOT_MODE } }
     );
     child.unref();
   } catch (error) {
@@ -1395,9 +1419,22 @@ export async function handleFile(ctx: Context): Promise<void> {
     return;
   }
 
-  const fullPath = filePath.startsWith('/')
-    ? filePath
-    : path.join(session.workingDirectory, filePath);
+  // Validate path to prevent traversal attacks
+  let fullPath: string;
+  if (filePath.startsWith('/')) {
+    await replyMd(ctx, `❌ Absolute paths not allowed\\. Use a path relative to your project\\.`);
+    return;
+  }
+
+  try {
+    fullPath = validatePathWithinRoot(session.workingDirectory, filePath);
+  } catch (err) {
+    if (err instanceof PathValidationError) {
+      await replyMd(ctx, `❌ Path traversal detected: access denied`);
+      return;
+    }
+    throw err;
+  }
 
   if (!fs.existsSync(fullPath)) {
     await replyMd(ctx, `❌ File not found: \`${esc(filePath)}\``);
@@ -1450,9 +1487,22 @@ export async function handleTelegraph(ctx: Context): Promise<void> {
     return;
   }
 
-  const fullPath = filePath.startsWith('/')
-    ? filePath
-    : path.join(session.workingDirectory, filePath);
+  // Validate path to prevent traversal attacks
+  let fullPath: string;
+  if (filePath.startsWith('/')) {
+    await replyMd(ctx, `❌ Absolute paths not allowed\\. Use a path relative to your project\\.`);
+    return;
+  }
+
+  try {
+    fullPath = validatePathWithinRoot(session.workingDirectory, filePath);
+  } catch (err) {
+    if (err instanceof PathValidationError) {
+      await replyMd(ctx, `❌ Path traversal detected: access denied`);
+      return;
+    }
+    throw err;
+  }
 
   if (!fs.existsSync(fullPath)) {
     await replyMd(ctx, `❌ File not found: \`${esc(filePath)}\``);
@@ -1593,6 +1643,16 @@ export async function executeRedditFetch(
   ctx: Context,
   args: string
 ): Promise<void> {
+  try {
+    requireFeature('reddit');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   await ctx.replyWithChatAction('typing');
 
   const tokens = tokenizeArgs(args);
@@ -1684,6 +1744,16 @@ export async function executeMediumFetch(
   ctx: Context,
   args: string
 ): Promise<void> {
+  try {
+    requireFeature('medium');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   await ctx.replyWithChatAction('typing');
 
   const url = args.trim().split(/\s+/)[0];
@@ -1702,7 +1772,7 @@ export async function executeMediumFetch(
   if (!chatId) return;
 
   try {
-    const article = await fetchMediumArticle(url);
+    const article = await callExternalService('Freedium', () => fetchMediumArticle(url));
 
     // Build preview: title + author + first ~200 chars of markdown
     const preview = article.markdown.length > 200
@@ -1735,6 +1805,10 @@ export async function executeMediumFetch(
       expiresAt: Date.now() + MEDIUM_RESULT_TTL_MS,
     });
   } catch (err) {
+    if (err instanceof ServiceUnavailableError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(formatServiceError(err))}`);
+      return;
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     await replyMd(ctx, `❌ Medium fetch failed: ${esc(message.substring(0, 300))}`);
   }
@@ -1813,6 +1887,16 @@ export async function handleMediumCallback(ctx: Context): Promise<void> {
 }
 
 export async function handleMedium(ctx: Context): Promise<void> {
+  try {
+    requireFeature('medium');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -1840,6 +1924,16 @@ export async function handleMedium(ctx: Context): Promise<void> {
 }
 
 export async function handleReddit(ctx: Context): Promise<void> {
+  try {
+    requireFeature('reddit');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -1869,6 +1963,16 @@ export async function handleReddit(ctx: Context): Promise<void> {
 }
 
 export async function handleVReddit(ctx: Context): Promise<void> {
+  try {
+    requireFeature('reddit');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -2094,6 +2198,16 @@ setInterval(() => {
 }, 60_000);
 
 export async function handleExtract(ctx: Context): Promise<void> {
+  try {
+    requireFeature('extract');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const text = ctx.message?.text || '';
   const args = text.split(' ').slice(1).join(' ').trim();
 
@@ -2122,6 +2236,16 @@ export async function handleExtract(ctx: Context): Promise<void> {
 }
 
 export async function showExtractMenu(ctx: Context, url: string): Promise<void> {
+  try {
+    requireFeature('extract');
+  } catch (error) {
+    if (error instanceof FeatureDisabledError) {
+      await replyMd(ctx, `\u26a0\ufe0f ${esc(error.message)}\\.`);
+      return;
+    }
+    throw error;
+  }
+
   const chatId = ctx.chat?.id;
   if (!chatId) return;
 

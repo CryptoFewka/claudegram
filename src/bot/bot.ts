@@ -1,6 +1,8 @@
 import { Bot } from 'grammy';
 import { config } from '../config.js';
 import { authMiddleware } from './middleware/auth.middleware.js';
+import { FeatureDisabledError } from '../features/flags.js';
+import { ServiceUnavailableError, formatServiceError } from '../features/errors.js';
 import {
   handleStart,
   handleClear,
@@ -179,6 +181,21 @@ export async function createBot(): Promise<Bot> {
   // Error handler
   bot.catch((err) => {
     console.error('Bot error:', err);
+
+    const ctx = err.ctx;
+    const error = err.error;
+
+    // Handle feature disabled errors
+    if (error instanceof FeatureDisabledError) {
+      ctx.reply(`⚠️ ${error.message}`, { parse_mode: undefined }).catch(console.error);
+      return;
+    }
+
+    // Handle service unavailable errors
+    if (error instanceof ServiceUnavailableError) {
+      ctx.reply(`⚠️ ${formatServiceError(error)}`, { parse_mode: undefined }).catch(console.error);
+      return;
+    }
   });
 
   return bot;

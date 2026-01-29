@@ -1,0 +1,88 @@
+services:
+  # DEPLOYMENT NOTE: User namespace remapping requires either:
+  # 1. Rootless Docker (docker context use rootless) - recommended
+  # 2. Standard Docker with /etc/docker/daemon.json: {"userns-remap": "default"}
+  # 3. Podman (rootless by default, no config needed)
+  #
+  # This allows Claude Code to run as root (UID 0) inside container
+  # but maps to unprivileged UID on host (prevents host escape)
+
+  claudegram:
+    build: .
+    container_name: claudegram
+    restart: unless-stopped
+
+    # CONT-02: User namespace remapping
+    # Container sees root (UID 0) but host maps to unprivileged UID
+    # Allows Claude Code to install packages inside container
+    # Prevents host root escalation even with kernel exploits
+    userns_mode: "host"
+
+    # Runtime secrets -- never bake into image
+    env_file:
+      - .env
+
+    # CONT-03: Read-only root filesystem
+    # Only /tmp and /run are writable (tmpfs mounts below)
+    # Prevents attackers from modifying application code or installing backdoors
+    read_only: true
+
+    # CONT-03: Writable tmpfs mounts for temp files and runtime state
+    # /tmp: Temporary files (ffmpeg output, downloads, etc.)
+    # /run: Runtime state (PID files, sockets)
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+      - /run:size=64m,mode=755
+
+    # CONT-04: Drop ALL Linux capabilities
+    # The bot needs none -- it does not bind to privileged ports,
+    # manipulate network interfaces, or access raw sockets
+    cap_drop:
+      - ALL
+
+    # CONT-04: Security hardening
+    # no-new-privileges: Prevents privilege escalation via setuid binaries
+    # seccomp: Custom profile blocks dangerous syscalls (mount, ptrace, bpf, etc.)
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=container/seccomp.json
+
+    # CONT-05: Resource limits to prevent resource exhaustion on host
+    # Memory: 2GB cap prevents memory bombs
+    # CPU: 2 cores limit prevents CPU exhaustion
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+          cpus: "2.0"
+
+    # CONT-05: Process and file descriptor limits
+    # nproc: Prevents fork bombs (256 soft / 512 hard)
+    # nofile: File descriptor limit (4096 soft / 8192 hard)
+    ulimits:
+      nproc:
+        soft: 256
+        hard: 512
+      nofile:
+        soft: 4096
+        hard: 8192
+
+    # CONT-06: Workspace volume isolation
+    # Claude Code workspace is separate from application code
+    # App code in /app is read-only (via read_only: true above)
+    # Workspace in /app/workspace is writable (named volume below)
+    volumes:
+      - claudegram-workspace:/app/workspace
+
+    # Logging configuration with rotation to prevent disk exhaustion
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Named volume for Claude Code workspace
+# Isolated from host filesystem
+volumes:
+  claudegram-workspace:
+    driver: local

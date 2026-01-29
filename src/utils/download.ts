@@ -1,4 +1,5 @@
 import { spawn } from 'child_process';
+import { createMinimalEnv } from '../validation/env.js';
 
 /**
  * Download a file from a URL using curl with stdin config.
@@ -23,7 +24,7 @@ export function downloadFileSecure(fileUrl: string, destPath: string): Promise<v
       '-', // Read config from stdin
     ];
 
-    const child = spawn('curl', curlArgs, { timeout: 60_000 });
+    const child = spawn('curl', curlArgs, { timeout: 60_000, env: createMinimalEnv() });
     let stderr = '';
 
     child.stderr.on('data', (data) => {
