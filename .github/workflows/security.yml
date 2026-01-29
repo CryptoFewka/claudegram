@@ -1,0 +1,80 @@
+name: Security Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # Job 1: Build Docker image + scan with Trivy
+  build-and-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write  # For future SARIF upload
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true  # Load into local Docker daemon for scanning
+          tags: claudegram:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: claudegram:${{ github.sha }}
+          format: table
+          severity: HIGH,CRITICAL
+          exit-code: '1'  # Fail build on HIGH/CRITICAL vulnerabilities
+          ignore-unfixed: true  # Skip vulnerabilities with no available fix
+
+  # Job 2: Dependency auditing
+  audit-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: npm audit --audit-level=high
+        # Fails with exit code 1 if high/critical vulnerabilities found
+
+  # Job 3: Security linting
+  eslint-security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint security checks
+        run: npm run lint
+        # Uses eslint.config.js with eslint-plugin-security
