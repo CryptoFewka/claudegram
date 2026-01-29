@@ -1,8 +1,22 @@
 services:
+  # DEPLOYMENT NOTE: User namespace remapping requires either:
+  # 1. Rootless Docker (docker context use rootless) - recommended
+  # 2. Standard Docker with /etc/docker/daemon.json: {"userns-remap": "default"}
+  # 3. Podman (rootless by default, no config needed)
+  #
+  # This allows Claude Code to run as root (UID 0) inside container
+  # but maps to unprivileged UID on host (prevents host escape)
+
   claudegram:
     build: .
     container_name: claudegram
     restart: unless-stopped
+
+    # CONT-02: User namespace remapping
+    # Container sees root (UID 0) but host maps to unprivileged UID
+    # Allows Claude Code to install packages inside container
+    # Prevents host root escalation even with kernel exploits
+    userns_mode: "host"
 
     # Runtime secrets -- never bake into image
     env_file:
